@@ -30,6 +30,7 @@ bun run build
 - **Pipeline**: file change → build (`python.ts`) → registry validate (`config.ts`) → openscad render (`python.ts`) → WS broadcast (`websocket.ts`)
 - **Client**: `client/` — vanilla HTML/JS/CSS, served by Bun. In dev mode `.ts` transpiled on-the-fly; in compiled mode pre-built `.js` served from `CADENG_CLIENT_DIR`
 - **Types**: `server/types.ts` — all shared types (config schema, WS messages, registry)
+- **WS-only**: All model metadata, projects, and config delivered via the WebSocket `connected` message. No REST API endpoints.
 - **Zero npm deps**: everything uses Bun built-ins
 
 ## Key Files
@@ -39,7 +40,7 @@ bun run build
 | `server/index.ts` | Entry + pipeline orchestration |
 | `server/config.ts` | YAML parse, camera resolution, registry↔config validation |
 | `server/python.ts` | Bun.spawn wrappers for python/openscad |
-| `server/routes.ts` | HTTP routes: gallery, /api/*, /stl/*, /build/* — uses CADENG_CLIENT_DIR env var |
+| `server/routes.ts` | HTTP routes: gallery, /stl/*, /build/*, /client/* — uses CADENG_CLIENT_DIR env var |
 | `server/websocket.ts` | WS broadcast + client message handling |
 | `server/watcher.ts` | fs.watch + debounce |
 | `client/gallery.ts` | WS client, DOM render, lightbox, reconnect |
@@ -64,6 +65,24 @@ Python source packages (`example/src/`) follow strict ownership rules:
 | `vitamins/` | Compositions of vitamins only | `vitamin_assembly` | 3 |
 | `components/` | 3D-printed or fabricated parts you design | `component` | 2 |
 | `assemblies/` | Cross-category compositions (vitamins + components) | `assembly` | 1 (first) |
+
+## Projects
+
+cadeng.yaml supports an optional `projects:` section that groups models into named tabs in the gallery UI:
+
+```yaml
+projects:
+  - name: esp-dev-platform
+    label: ESP Dev Platform
+    models: [esp32_c3_supermini, enclosure_base, enclosure_complete]
+  - name: hydro-tower
+    label: Hydro Tower
+    models: []
+```
+
+- `label` is auto-generated from `name` if omitted (splits on `-_`, title-cases)
+- Model references are validated against the `models:` list at startup
+- Gallery shows "All" tab plus one tab per project for filtering
 
 ## Conventions
 
