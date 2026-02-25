@@ -4,8 +4,16 @@ interface ModelInfo {
   name: string;
   type: string;
   stl: boolean;
-  angles: string[];
-  warnings?: { model: string; issue: string }[];
+  scad: string;
+  angles: string;
+  camera_distance?: number;
+  variants?: { name: string; scad: string; angles: string }[];
+}
+
+interface ProjectGroup {
+  name: string;
+  label: string;
+  models: string[];
 }
 
 interface Screenshot {
@@ -20,13 +28,14 @@ let ws: WebSocket | null = null;
 let reconnectAttempts = 0;
 const MAX_RECONNECT_DELAY = 30000;
 const screenshots = new Map<string, Screenshot>();
-let models: string[] = [];
+let models: ModelInfo[] = [];
 let validModels: string[] = [];
 let warnings: { model: string; issue: string }[] = [];
 let stlScales: number[] = [100, 50, 25];
 let buildDir = "cad/build";
 let projectName = "CADeng Gallery";
-let modelTypes = new Map<string, string>();
+let projects: ProjectGroup[] = [];
+let activeProject: string | null = null;
 
 // DOM refs
 const $content = () => document.getElementById("content")!;
@@ -77,12 +86,9 @@ function handleMessage(msg: any) {
   switch (msg.type) {
     case "connected":
       models = msg.models || [];
+      projects = msg.projects || [];
       buildDir = msg.config?.buildDir || buildDir;
-      // Fetch model metadata for type badges
-      fetch("/api/models").then(r => r.json()).then((list: any[]) => {
-        for (const m of list) modelTypes.set(m.name, m.type);
-        renderGallery();
-      });
+      renderGallery();
       break;
 
     case "build_start":
@@ -180,10 +186,34 @@ function renderGallery() {
 
   let html = "";
 
-  // Validation warnings
-  if (warnings.length > 0) {
+  // Project tabs (only when projects exist)
+  if (projects.length > 0) {
+    html += `<div class="project-tabs">`;
+    html += `<button class="project-tab${activeProject === null ? " active" : ""}" onclick="setProject(null)">All</button>`;
+    for (const proj of projects) {
+      const isActive = activeProject === proj.name;
+      html += `<button class="project-tab${isActive ? " active" : ""}" onclick="setProject('${proj.name}')">${proj.label}</button>`;
+    }
+    html += `</div>`;
+  }
+
+  // Filter models by active project
+  let visibleModels = models;
+  if (activeProject !== null) {
+    const proj = projects.find((p) => p.name === activeProject);
+    if (proj) {
+      const projModelNames = new Set(proj.models);
+      visibleModels = models.filter((m) => projModelNames.has(m.name));
+    }
+  }
+
+  const visibleModelNames = new Set(visibleModels.map((m) => m.name));
+
+  // Validation warnings (only for visible models)
+  const visibleWarnings = warnings.filter((w) => visibleModelNames.has(w.model));
+  if (visibleWarnings.length > 0) {
     html += `<div class="warnings"><h3>Validation Warnings</h3><ul>`;
-    for (const w of warnings) {
+    for (const w of visibleWarnings) {
       const label =
         w.issue === "not_in_registry"
           ? `'${w.model}' is in cadeng.yaml but not found in Python registry (stale config)`
@@ -195,27 +225,33 @@ function renderGallery() {
 
   // Group screenshots by model
   const groups = new Map<string, Screenshot[]>();
-  for (const model of models) {
-    groups.set(model, []);
+  for (const model of visibleModels) {
+    groups.set(model.name, []);
   }
   for (const ss of screenshots.values()) {
+    if (!visibleModelNames.has(ss.model)) continue;
     const list = groups.get(ss.model) || [];
     list.push(ss);
     groups.set(ss.model, list);
   }
 
+  // Build type lookup from full model objects
+  const modelTypeMap = new Map<string, string>();
+  for (const m of models) {
+    modelTypeMap.set(m.name, m.type);
+  }
+
   // Sort models: assemblies first, then components, then vitamin assemblies, then vitamins
   const typeOrder: Record<string, number> = { assembly: 0, component: 1, vitamin_assembly: 2, vitamin: 3 };
   const sortedEntries = [...groups.entries()].sort((a, b) => {
-    const aType = modelTypes.get(a[0]) || "component";
-    const bType = modelTypes.get(b[0]) || "component";
+    const aType = modelTypeMap.get(a[0]) || "component";
+    const bType = modelTypeMap.get(b[0]) || "component";
     return (typeOrder[aType] ?? 1) - (typeOrder[bType] ?? 1);
   });
 
   for (const [modelName, shots] of sortedEntries) {
     const modelWarnings = warnings.filter((w) => w.model === modelName);
     const isValid = validModels.includes(modelName);
-    const hasStl = true; // We'll check from connected models
 
     html += `<div class="model-group">`;
     html += `<div class="model-group-header">`;
@@ -223,7 +259,7 @@ function renderGallery() {
     if (modelWarnings.length > 0) {
       html += `<span class="model-badge warning">warning</span>`;
     } else if (isValid) {
-      const modelType = modelTypes.get(modelName) || "component";
+      const modelType = modelTypeMap.get(modelName) || "component";
       const badgeLabel = modelType === "vitamin_assembly" ? "vitamin assembly" : modelType;
       html += `<span class="model-badge">${badgeLabel}</span>`;
     }
@@ -291,6 +327,11 @@ function renderGallery() {
 (window as any).downloadStl = function (model: string, scale: number) {
   const url = `/stl/${model}${scale !== 100 ? `?scale=${scale}` : ""}`;
   window.open(url, "_blank");
+};
+
+(window as any).setProject = function (name: string | null) {
+  activeProject = name;
+  renderGallery();
 };
 
 (window as any).requestRebuild = function () {

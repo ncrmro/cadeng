@@ -37,6 +37,11 @@ camera_sets:
 stl:
   scales: [100, 50, 25]
 
+projects:
+  - name: stand
+    label: Phone Stand
+    models: [phone, stand-base, stand-cradle, phone-stand-assembly]
+
 models:
   - name: phone
     type: vitamin

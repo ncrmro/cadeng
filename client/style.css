@@ -97,6 +97,37 @@ body {
   transition: width 0.3s ease;
 }
 
+/* Project tabs */
+.project-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.project-tab {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  padding: 0.4rem 0.9rem;
+  border-radius: var(--radius);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s;
+}
+
+.project-tab:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.project-tab.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(233, 69, 96, 0.1);
+}
+
 /* Content */
 .content {
   padding: 2rem;
@@ -146,7 +177,7 @@ body {
 }
 
 .warnings li::before {
-  content: "⚠ ";
+  content: "\26A0 ";
   color: var(--warning);
 }
 

@@ -60,31 +60,6 @@ export async function handleRequest(
     return serveFile(filePath);
   }
 
-  // API endpoints
-  if (path === "/api/config") {
-    return Response.json(config);
-  }
-
-  if (path === "/api/models") {
-    const models = config.models.map((m) => ({
-      ...m,
-      valid: state.lastValidation?.valid_models.includes(m.name) ?? true,
-      warnings: state.lastValidation?.warnings.filter(
-        (w) => w.model === m.name
-      ),
-    }));
-    return Response.json(models);
-  }
-
-  if (path === "/api/status") {
-    return Response.json({
-      building: state.building,
-      rendering: state.rendering,
-      lastBuild: state.lastBuild,
-      lastValidation: state.lastValidation,
-    });
-  }
-
   // STL downloads
   if (path.startsWith("/stl/")) {
     return handleStlRequest(path, url, config, state);

@@ -51,7 +51,8 @@ export function createWebSocketHandler(config: CadengConfig) {
       clients.add(ws);
       const msg: WsServerMessage = {
         type: "connected",
-        models: config.models.map((m) => m.name),
+        models: config.models,
+        projects: config.projects ?? [],
         config: {
           port: config.project.port,
           buildDir: config.project.build_dir,

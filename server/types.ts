@@ -1,5 +1,11 @@
 // -- Config Schema Types --
 
+export interface ProjectGroup {
+  name: string;
+  label: string;
+  models: string[];
+}
+
 export interface CadengConfig {
   project: ProjectConfig;
   python: PythonConfig;
@@ -7,6 +13,7 @@ export interface CadengConfig {
   cameras: Record<string, string>;
   camera_sets: Record<string, string[]> & { default: string };
   stl: StlConfig;
+  projects: ProjectGroup[];
   models: ModelConfig[];
 }
 
@@ -76,7 +83,7 @@ export interface ValidationResult {
 // -- WebSocket Message Types --
 
 export type WsServerMessage =
-  | { type: "connected"; models: string[]; config: { port: number; buildDir: string } }
+  | { type: "connected"; models: ModelConfig[]; projects: ProjectGroup[]; config: { port: number; buildDir: string } }
   | { type: "build_start"; command: string }
   | { type: "build_complete"; success: boolean; error?: string; duration_ms: number }
   | { type: "render_start"; models: string[]; totalAngles: number }
