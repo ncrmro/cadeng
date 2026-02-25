@@ -44,16 +44,19 @@
 
             buildPhase = ''
               export HOME="$TMPDIR"
-              bun build --compile index.ts --outfile cadeng
+              # Bundle all TS modules into a single JS file.
+              # bun --compile silently drops embedded bytecode in
+              # nix sandbox chroots, so we bundle + run with bun instead.
+              bun build index.ts --outfile cadeng-server.js --target bun
             '';
 
             installPhase = ''
-              mkdir -p $out/bin
-              cp cadeng $out/bin/
+              mkdir -p $out/lib $out/bin
+              cp cadeng-server.js $out/lib/
             '';
           };
 
-          # Stage 3: Wrapped package — sets CADENG_CLIENT_DIR
+          # Stage 3: Wrapped package — sets CADENG_CLIENT_DIR and runs via bun
           cadeng = pkgs.stdenv.mkDerivation {
             pname = "cadeng";
             version = "0.1.0";
@@ -63,11 +66,12 @@
             nativeBuildInputs = [ pkgs.makeWrapper ];
 
             installPhase = ''
-              mkdir -p $out/bin $out/share/cadeng/client
+              mkdir -p $out/bin $out/lib $out/share/cadeng/client
               cp -r ${cadeng-client}/* $out/share/cadeng/client/
-              cp ${cadeng-server}/bin/cadeng $out/bin/.cadeng-unwrapped
-              makeWrapper $out/bin/.cadeng-unwrapped $out/bin/cadeng \
-                --set CADENG_CLIENT_DIR "$out/share/cadeng/client"
+              cp ${cadeng-server}/lib/cadeng-server.js $out/lib/
+              makeWrapper ${pkgs.bun}/bin/bun $out/bin/cadeng \
+                --set CADENG_CLIENT_DIR "$out/share/cadeng/client" \
+                --add-flags "run $out/lib/cadeng-server.js"
             '';
           };
         in
