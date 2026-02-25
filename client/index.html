@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CADeng Gallery</title>
+  <link rel="stylesheet" href="/client/style.css" />
+</head>
+<body>
+  <div id="reconnecting-banner" class="reconnecting-banner">
+    Reconnecting to server...
+  </div>
+
+  <header class="header">
+    <h1>CADeng Gallery</h1>
+    <div class="header-status">
+      <span id="build-status" class="build-status"></span>
+      <button id="rebuild-btn" class="rebuild-btn" onclick="requestRebuild()">Rebuild</button>
+      <div id="status-dot" class="status-dot"></div>
+      <span id="status-text" style="font-size: 0.8rem; color: var(--text-muted);">Connecting...</span>
+    </div>
+  </header>
+
+  <div class="progress-bar">
+    <div id="progress-fill" class="progress-bar-fill"></div>
+  </div>
+
+  <main id="content" class="content">
+    <div class="empty-state">
+      <h2>Connecting...</h2>
+      <p>Waiting for WebSocket connection to server.</p>
+    </div>
+  </main>
+
+  <!-- Lightbox -->
+  <div id="lightbox" class="lightbox" onclick="closeLightbox()">
+    <button class="lightbox-close" onclick="closeLightbox()">&times;</button>
+    <img id="lightbox-img" src="" alt="Preview" />
+    <div id="lightbox-caption" class="lightbox-caption"></div>
+  </div>
+
+  <script src="/client/gallery.ts"></script>
+</body>
+</html>

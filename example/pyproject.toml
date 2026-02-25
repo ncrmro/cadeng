@@ -1,0 +1,19 @@
+[project]
+name = "cadeng-example"
+version = "0.1.0"
+description = "Example AnchorSCAD project for cadeng"
+requires-python = ">=3.10"
+dependencies = [
+    "anchorscad-core",
+    "pythonopenscad",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["src"]

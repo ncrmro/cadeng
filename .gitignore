@@ -1,0 +1,9 @@
+node_modules/
+build/
+.direnv/
+.venv/
+result
+result-*
+__pycache__/
+*.pyc
+cadeng

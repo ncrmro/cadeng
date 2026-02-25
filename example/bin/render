@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Render all registered parts to SCAD and then to STL
+cd "$(dirname "$0")/.."
+
+echo "==> Building SCAD files..."
+python3 -m src --render
+
+echo "==> Rendering STLs..."
+for scad in build/*.scad; do
+    [ -f "$scad" ] || continue
+    name=$(basename "$scad" .scad)
+    stl="build/${name}.stl"
+    echo "  ${name}.scad -> ${name}.stl"
+    openscad -o "$stl" "$scad"
+    echo "    $(du -h "$stl" | cut -f1)"
+done
+
+echo "==> Done."

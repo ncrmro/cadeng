@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Render screenshots for all SCAD files with standard camera angles
+cd "$(dirname "$0")/.."
+
+IMGSIZE="1024,768"
+COLORSCHEME="Tomorrow"
+FN=64
+
+# Camera angles (OpenSCAD format: tx,ty,tz,rx,ry,rz,dist)
+declare -A CAMERAS=(
+    [iso]="0,0,0,55,0,25,0"
+    [front]="0,0,0,90,0,0,0"
+    [top]="0,0,0,0,0,0,0"
+)
+
+echo "==> Rendering screenshots..."
+for scad in build/*.scad; do
+    [ -f "$scad" ] || continue
+    name=$(basename "$scad" .scad)
+
+    for angle in "${!CAMERAS[@]}"; do
+        camera="${CAMERAS[$angle]}"
+        output="build/component-${name}-${angle}.png"
+        echo "  ${name}/${angle}"
+        openscad \
+            --imgsize="$IMGSIZE" \
+            --camera="$camera" \
+            --colorscheme="$COLORSCHEME" \
+            -D"\$fn=$FN" \
+            --autocenter \
+            --viewall \
+            -o "$output" \
+            "$scad"
+    done
+done
+
+echo "==> Done."

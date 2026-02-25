@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Run tests and verify SCAD generation
+cd "$(dirname "$0")/.."
+
+echo "==> Running pytest..."
+python3 -m pytest -v
+
+echo "==> Verifying SCAD generation..."
+python3 -m src --render
+
+echo "==> Checking registry..."
+python3 -m src --list | python3 -c "
+import json, sys
+parts = json.load(sys.stdin)
+print(f'Registry: {len(parts)} parts')
+for p in parts:
+    print(f'  {p[\"name\"]} ({p[\"type\"]}, stl={p[\"stl\"]})')
+"
+
+echo "==> All checks passed."

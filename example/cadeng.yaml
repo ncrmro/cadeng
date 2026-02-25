@@ -1,0 +1,51 @@
+project:
+  name: "CADeng Example"
+  build_dir: build
+  port: 9090
+
+python:
+  build_command: "uv run python -m src --render"
+  build_cwd: .
+  registry_command: "uv run python -m src --list"
+  watch_dirs:
+    - src
+  watch_extensions:
+    - .py
+  debounce_ms: 2000
+
+render:
+  resolution: [1024, 768]
+  colorscheme: Tomorrow
+  fn: 64
+  autocenter: true
+  viewall: true
+
+cameras:
+  iso:   "0,0,0,55,0,25,0"
+  front: "0,0,0,90,0,0,0"
+  back:  "0,0,0,90,0,180,0"
+  top:   "0,0,0,0,0,0,0"
+  right: "0,0,0,90,0,270,0"
+  left:  "0,0,0,90,0,90,0"
+
+camera_sets:
+  quick: [iso]
+  standard: [iso, front, top]
+  full: [iso, front, back, top, right, left]
+  default: standard
+
+stl:
+  scales: [100, 50, 25]
+
+models:
+  - name: cube
+    type: component
+    scad: build/cube.scad
+    angles: standard
+    stl: true
+
+  - name: cylinder
+    type: component
+    scad: build/cylinder.scad
+    angles: quick
+    stl: true

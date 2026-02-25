@@ -1,0 +1,9 @@
+{
+  "name": "cadeng",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "bun run server/index.ts",
+    "build": "bun build --compile server/index.ts --outfile cadeng"
+  }
+}
