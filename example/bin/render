@@ -5,7 +5,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 echo "==> Building SCAD files..."
-python3 -m src --render
+uv run python -m src --render
 
 echo "==> Rendering STLs..."
 for scad in build/*.scad; do

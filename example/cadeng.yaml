@@ -38,14 +38,30 @@ stl:
   scales: [100, 50, 25]
 
 models:
-  - name: cube
-    type: component
-    scad: build/cube.scad
+  - name: phone
+    type: vitamin
+    scad: build/phone.scad
     angles: standard
+    stl: false
+
+  - name: stand-base
+    type: component
+    scad: build/stand-base.scad
+    angles: full
     stl: true
 
-  - name: cylinder
+  - name: stand-cradle
     type: component
-    scad: build/cylinder.scad
-    angles: quick
+    scad: build/stand-cradle.scad
+    angles: full
     stl: true
+
+  - name: phone-stand-assembly
+    type: assembly
+    scad: build/phone-stand-assembly.scad
+    angles: full
+    stl: false
+    variants:
+      - name: exploded
+        scad: build/phone_stand_exploded.scad
+        angles: standard

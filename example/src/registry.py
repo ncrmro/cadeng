@@ -55,8 +55,10 @@ def auto_register_module(module, part_type: str = "component"):
 
 def get_registry() -> Dict[str, tuple[Callable, str]]:
     """Return the full part registry."""
-    # Trigger auto-discovery by importing components
+    # Trigger auto-discovery by importing all packages
+    from . import vitamins    # noqa: F401
     from . import components  # noqa: F401
+    from . import assemblies  # noqa: F401
     return dict(_PART_REGISTRY)
 
 

@@ -5,13 +5,13 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 echo "==> Running pytest..."
-python3 -m pytest -v
+uv run pytest -v
 
 echo "==> Verifying SCAD generation..."
-python3 -m src --render
+uv run python -m src --render
 
 echo "==> Checking registry..."
-python3 -m src --list | python3 -c "
+uv run python -m src --list | uv run python -c "
 import json, sys
 parts = json.load(sys.stdin)
 print(f'Registry: {len(parts)} parts')

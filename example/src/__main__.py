@@ -9,8 +9,15 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from unittest.mock import MagicMock
 
-from .registry import get_registry, list_parts
+# Mock OpenGL before any anchorscad import (headless environments)
+sys.modules.setdefault("OpenGL", MagicMock())
+sys.modules.setdefault("OpenGL.GL", MagicMock())
+
+import anchorscad as ad  # noqa: E402
+
+from .registry import get_registry, list_parts  # noqa: E402
 
 
 def render_all():
@@ -22,11 +29,14 @@ def render_all():
     for name, (factory, ptype) in registry.items():
         try:
             shape = factory()
+            rendered = ad.render(shape)
+            scad_code = rendered.rendered_shape.dumps()
             scad_path = build_dir / f"{name}.scad"
-            shape.write_scad(str(scad_path))
+            scad_path.write_text(scad_code)
             print(f"Rendered: {scad_path}")
         except Exception as e:
             print(f"Failed to render {name}: {e}", file=sys.stderr)
+            raise
 
 
 def main():
