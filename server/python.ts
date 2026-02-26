@@ -161,24 +161,31 @@ export async function runScaledStlExport(
     };
   }
 
-  // Use an absolute path for the include so OpenSCAD can resolve it
+  // Two-pass approach: export full-size STL, then import + scale.
+  // We can't use `include` inside `scale()` because generated SCAD files
+  // contain module definitions which OpenSCAD won't parse inside transforms.
   const { resolve } = require("path");
-  const absoluteScad = resolve(scadPath);
+  const { unlinkSync } = require("fs");
+
+  const fullSizePath = outputPath.replace(".stl", "_fullsize_tmp.stl");
+  const fullSizeResult = await runStlExport(scadPath, fullSizePath, fn);
+  if (!fullSizeResult.success) {
+    try { unlinkSync(fullSizePath); } catch {}
+    return fullSizeResult;
+  }
+
+  const absoluteStl = resolve(fullSizePath);
   const factor = scale / 100;
-  const wrapperContent = `scale([${factor}, ${factor}, ${factor}]) {\n  include <${absoluteScad}>;\n}\n`;
+  const wrapperContent = `scale([${factor}, ${factor}, ${factor}]) import("${absoluteStl}");\n`;
 
   const wrapperPath = outputPath.replace(".stl", "_scale_tmp.scad");
   await Bun.write(wrapperPath, wrapperContent);
 
   const result = await runStlExport(wrapperPath, outputPath, fn);
 
-  // Clean up temp file
-  try {
-    const { unlinkSync } = require("fs");
-    unlinkSync(wrapperPath);
-  } catch {
-    // Ignore cleanup failures
-  }
+  // Clean up temp files
+  try { unlinkSync(wrapperPath); } catch {}
+  try { unlinkSync(fullSizePath); } catch {}
 
   return result;
 }
