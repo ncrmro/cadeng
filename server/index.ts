@@ -1,5 +1,5 @@
 import { resolve } from "path";
-import { mkdirSync, readdirSync, statSync } from "fs";
+import { mkdirSync, readdirSync, readFileSync, writeFileSync, statSync } from "fs";
 import { parseConfigAsync, resolveAngles, validateRegistry } from "./config.ts";
 import {
   runBuild,
@@ -16,7 +16,7 @@ import {
 } from "./websocket.ts";
 import { handleRequest } from "./routes.ts";
 import { createWatcher, stopWatchers } from "./watcher.ts";
-import type { BuildState, CadengConfig, ModelConfig } from "./types.ts";
+import type { BuildState, CadengConfig, ModelConfig, ValidationResult } from "./types.ts";
 
 const CONFIG_PATH = resolve("cadeng.yaml");
 
@@ -30,6 +30,114 @@ const state: BuildState = {
 };
 
 let pipelineLock = false;
+
+// -- Pipeline cache: skip build+render when sources haven't changed --
+// Two levels:
+//   1. sourceHash (watched Python files + cadeng.yaml) → skip build if unchanged
+//   2. per-model .scad hash (after build) → skip render for unchanged models
+
+const CACHE_FILENAME = ".cadeng-cache.json";
+
+interface ModelCache {
+  scadHash: string;
+  variantHashes: Record<string, string>;
+}
+
+interface PipelineCache {
+  sourceHash: string;
+  renderConfigHash: string;
+  validation: ValidationResult;
+  models: Record<string, ModelCache>;
+}
+
+function collectWatchedFiles(config: CadengConfig): string[] {
+  const extensions = new Set(config.python.watch_extensions);
+  const files: string[] = [];
+
+  function walk(dir: string) {
+    let entries;
+    try {
+      entries = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      const fullPath = `${dir}/${entry.name}`;
+      if (entry.isDirectory()) {
+        walk(fullPath);
+      } else if (entry.isFile()) {
+        const dot = entry.name.lastIndexOf(".");
+        const ext = dot >= 0 ? entry.name.slice(dot) : "";
+        if (extensions.has(ext)) {
+          files.push(fullPath);
+        }
+      }
+    }
+  }
+
+  for (const dir of config.python.watch_dirs) {
+    walk(dir);
+  }
+  return files.sort();
+}
+
+function hashFile(path: string): string {
+  try {
+    const hasher = new Bun.CryptoHasher("sha256");
+    hasher.update(readFileSync(path));
+    return hasher.digest("hex") as string;
+  } catch {
+    return "";
+  }
+}
+
+function computeSourceHash(config: CadengConfig, configPath: string): string {
+  const hasher = new Bun.CryptoHasher("sha256");
+  try {
+    hasher.update(readFileSync(configPath));
+  } catch {}
+  for (const file of collectWatchedFiles(config)) {
+    hasher.update(file);
+    try {
+      hasher.update(readFileSync(file));
+    } catch {}
+  }
+  return hasher.digest("hex") as string;
+}
+
+function computeRenderConfigHash(config: CadengConfig): string {
+  const hasher = new Bun.CryptoHasher("sha256");
+  hasher.update(JSON.stringify(config.render));
+  hasher.update(JSON.stringify(config.cameras));
+  hasher.update(JSON.stringify(config.camera_sets));
+  return hasher.digest("hex") as string;
+}
+
+function modelCacheMatch(cached: ModelCache | undefined, current: ModelCache): boolean {
+  if (!cached) return false;
+  if (cached.scadHash !== current.scadHash) return false;
+  const cachedVariants = cached.variantHashes || {};
+  const currentVariants = current.variantHashes;
+  if (Object.keys(cachedVariants).length !== Object.keys(currentVariants).length) return false;
+  for (const [k, v] of Object.entries(currentVariants)) {
+    if (cachedVariants[k] !== v) return false;
+  }
+  return true;
+}
+
+function readCache(buildDir: string): PipelineCache | null {
+  try {
+    return JSON.parse(readFileSync(`${buildDir}/${CACHE_FILENAME}`, "utf-8"));
+  } catch {
+    return null;
+  }
+}
+
+function writeCache(buildDir: string, cache: PipelineCache): void {
+  try {
+    writeFileSync(`${buildDir}/${CACHE_FILENAME}`, JSON.stringify(cache));
+  } catch {}
+}
 
 // Screenshot name pattern: {type}-{name}-{angle}.png
 // Angle can be simple (iso, front) or variant (exploded_iso, exploded_front)
@@ -92,7 +200,7 @@ function sendExistingScreenshotsTo(ws: ServerWebSocket<WsData>, config: CadengCo
   }
 }
 
-async function runPipeline(config: CadengConfig, models?: string[]) {
+async function runPipeline(config: CadengConfig, models?: string[], force = false) {
   if (pipelineLock) {
     console.log("[pipeline] Already running, skipping");
     return;
@@ -102,6 +210,20 @@ async function runPipeline(config: CadengConfig, models?: string[]) {
   try {
     // Ensure build directory exists
     mkdirSync(config.project.build_dir, { recursive: true });
+
+    // Check source hash — skip entire pipeline if nothing changed
+    const sourceHash = computeSourceHash(config, CONFIG_PATH);
+    const cache = readCache(config.project.build_dir);
+    if (!models && !force && cache && cache.sourceHash === sourceHash) {
+      console.log("[pipeline] Sources unchanged (hash match), skipping build+render");
+      state.lastValidation = cache.validation;
+      broadcast({
+        type: "validation",
+        warnings: cache.validation.warnings,
+        valid_models: cache.validation.valid_models,
+      });
+      return;
+    }
 
     // Phase 1: Build
     state.building = true;
@@ -170,15 +292,36 @@ async function runPipeline(config: CadengConfig, models?: string[]) {
       `[validation] ${validation.valid_models.length} valid, ${validation.warnings.length} warnings`
     );
 
-    // Phase 3: Render screenshots
+    // Phase 3: Render screenshots (per-model .scad hash check)
+    const renderConfigHash = computeRenderConfigHash(config);
+    const renderConfigChanged = !cache || cache.renderConfigHash !== renderConfigHash;
+    const newModelHashes: Record<string, ModelCache> = {};
+
     const targetModels = config.models.filter((m) => {
       if (!validation.valid_models.includes(m.name)) return false;
       if (models && !models.includes(m.name)) return false;
       return true;
     });
 
+    // Hash each model's .scad files, only queue renders for changed models
     const renderJobs: { model: ModelConfig; angle: string; scadOverride?: string; cameraAngle?: string }[] = [];
     for (const model of targetModels) {
+      const scadHash = hashFile(model.scad);
+      const variantHashes: Record<string, string> = {};
+      if (model.variants) {
+        for (const v of model.variants) {
+          variantHashes[v.name] = hashFile(v.scad);
+        }
+      }
+      const currentHash: ModelCache = { scadHash, variantHashes };
+      newModelHashes[model.name] = currentHash;
+
+      // Skip render if .scad unchanged and render config unchanged
+      if (!force && !renderConfigChanged && modelCacheMatch(cache?.models?.[model.name], currentHash)) {
+        console.log(`[render] ${model.name} .scad unchanged, skipping`);
+        continue;
+      }
+
       const angles = resolveAngles(model, config);
       for (const angle of angles) {
         renderJobs.push({ model, angle });
@@ -199,15 +342,22 @@ async function runPipeline(config: CadengConfig, models?: string[]) {
       }
     }
 
+    const saveCacheAndReturn = () => {
+      writeCache(config.project.build_dir, {
+        sourceHash, renderConfigHash, validation, models: newModelHashes,
+      });
+    };
+
     if (renderJobs.length === 0) {
-      console.log("[render] No valid models to render");
+      console.log("[render] All models up to date, nothing to render");
+      saveCacheAndReturn();
       return;
     }
 
     state.rendering = true;
     broadcast({
       type: "render_start",
-      models: targetModels.map((m) => m.name),
+      models: [...new Set(renderJobs.map((j) => j.model.name))],
       totalAngles: renderJobs.length,
     });
 
@@ -258,6 +408,8 @@ async function runPipeline(config: CadengConfig, models?: string[]) {
     const renderDuration = Math.round(performance.now() - renderStart);
     broadcast({ type: "render_complete", duration_ms: renderDuration });
     console.log(`[render] Complete (${renderDuration}ms)`);
+
+    saveCacheAndReturn();
   } catch (err) {
     console.error(
       `[pipeline] Error: ${err instanceof Error ? err.message : err}`
@@ -282,7 +434,7 @@ async function main() {
 
   // Set up WebSocket command handlers
   setHandlers({
-    onRebuild: () => runPipeline(config),
+    onRebuild: () => runPipeline(config, undefined, true),
     onRender: (models) => runPipeline(config, models),
     onStlRequest: (model, scale) => {
       console.log(`[ws] STL request: ${model} scale=${scale || 100}`);

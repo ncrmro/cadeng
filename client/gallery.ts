@@ -294,8 +294,9 @@ function renderGallery() {
       html += `<p style="color: var(--text-muted); font-size: 0.9rem;">No screenshots yet</p>`;
     }
 
-    // STL buttons
-    if (isValid) {
+    // STL buttons (only when model has stl: true in config)
+    const modelStl = models.find((m) => m.name === modelName)?.stl;
+    if (isValid && modelStl !== false) {
       html += `<div class="stl-buttons">`;
       for (const scale of stlScales) {
         const label = scale === 100 ? "STL" : `STL ${scale}%`;
