@@ -88,6 +88,14 @@ function handleMessage(msg: any) {
       models = msg.models || [];
       projects = msg.projects || [];
       buildDir = msg.config?.buildDir || buildDir;
+      // Restore activeProject from URL path (e.g. /project/stand)
+      const pathMatch = location.pathname.match(/^\/project\/([^/]+)/);
+      if (pathMatch) {
+        const urlProject = pathMatch[1];
+        if (projects.some((p) => p.name === urlProject)) {
+          activeProject = urlProject;
+        }
+      }
       renderGallery();
       break;
 
@@ -332,6 +340,8 @@ function renderGallery() {
 
 (window as any).setProject = function (name: string | null) {
   activeProject = name;
+  const url = name ? `/project/${name}` : "/";
+  history.pushState({ project: name }, "", url);
   renderGallery();
 };
 
@@ -346,6 +356,13 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") {
     (window as any).closeLightbox();
   }
+});
+
+// Browser back/forward navigation
+window.addEventListener("popstate", (e) => {
+  const state = e.state as { project: string | null } | null;
+  activeProject = state?.project ?? null;
+  renderGallery();
 });
 
 // Initialize

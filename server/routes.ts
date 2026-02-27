@@ -39,8 +39,8 @@ export async function handleRequest(
   const url = new URL(req.url);
   const path = url.pathname;
 
-  // Gallery root
-  if (path === "/" || path === "/index.html") {
+  // Gallery root (including /project/* for client-side routing)
+  if (path === "/" || path === "/index.html" || path.startsWith("/project/")) {
     return serveFile(resolve(CLIENT_DIR, "index.html"));
   }
 
