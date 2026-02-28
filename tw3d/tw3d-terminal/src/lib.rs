@@ -141,7 +141,7 @@ impl TerminalApp {
         
         self.renderer.draw(&mut stdout)?;
 
-        // Draw UI overlay
+        // Draw UI overlay (future: use width for layout)
         let (_width, _) = terminal::size()?;
         queue!(
             stdout,

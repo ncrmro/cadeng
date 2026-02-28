@@ -75,7 +75,7 @@ impl Camera {
         // Transform to clip space
         let clip = mvp.transform_point(point);
 
-        // Perspective divide
+        // Prevent division by near-zero depth values
         if clip.z.abs() < 1e-6 {
             return None;
         }

@@ -21,7 +21,10 @@ impl WebRenderer {
     /// Initialize the renderer with a canvas element
     pub fn init(&mut self, _canvas_id: &str) -> Result<(), JsValue> {
         // TODO: Phase II - Initialize WGPU or WebGL context
-        Err(JsValue::from_str("Phase II not yet implemented"))
+        Err(JsValue::from_str(
+            "TW3D Web renderer (Phase II) is not yet implemented. \
+             This feature will include WGPU/WebGL rendering support."
+        ))
     }
 
     /// Render a frame

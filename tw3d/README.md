@@ -72,6 +72,16 @@ The demo renders a rotating cube using ASCII characters with a luminosity ramp:
  .:-=+*#%@
 ```
 
+**Loading STL Files:**
+
+```bash
+# Load and render an STL file
+cargo run --package tw3d-terminal --example load_stl -- path/to/model.stl
+
+# Without arguments, defaults to a cube
+cargo run --package tw3d-terminal --example load_stl
+```
+
 ## Development
 
 ### Running Tests

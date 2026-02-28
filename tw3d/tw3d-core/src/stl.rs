@@ -1,6 +1,6 @@
 /// STL file parser for binary and ASCII formats
 use nom::{
-    bytes::complete::{tag, take},
+    bytes::complete::tag,
     character::complete::{multispace0, multispace1},
     multi::many0,
     number::complete::float,
@@ -65,7 +65,8 @@ pub fn parse_ascii_stl(input: &str) -> Result<Mesh, String> {
 
 fn parse_ascii_stl_impl(input: &str) -> IResult<&str, Mesh> {
     let (input, _) = preceded(multispace0, tag("solid"))(input)?;
-    let (input, _) = preceded(multispace0, take(0usize))(input)?; // Optional name
+    // Skip optional solid name (not currently stored in Mesh)
+    let (input, _) = take_until_or_end("facet")(input)?;
     let (input, triangles) = many0(parse_facet)(input)?;
     let (input, _) = preceded(multispace0, tag("endsolid"))(input)?;
 
@@ -75,6 +76,13 @@ fn parse_ascii_stl_impl(input: &str) -> IResult<&str, Mesh> {
     }
 
     Ok((input, mesh))
+}
+
+fn take_until_or_end<'a>(pattern: &'static str) -> impl Fn(&'a str) -> IResult<&'a str, &'a str> {
+    move |input: &'a str| {
+        let pos = input.find(pattern).unwrap_or(input.len());
+        Ok((&input[pos..], &input[..pos]))
+    }
 }
 
 fn parse_facet(input: &str) -> IResult<&str, Triangle> {

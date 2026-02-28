@@ -64,7 +64,7 @@ impl AsciiRenderer {
 
         // Calculate face normal for shading
         let normal = triangle.calculate_normal();
-        let light_dir = nalgebra::Vector3::new(0.0, 0.0, 1.0).normalize();
+        let light_dir = nalgebra::Vector3::new(0.0, 0.0, 1.0); // Already normalized
         let brightness = normal.dot(&light_dir).max(0.0);
 
         // Map brightness to character
