@@ -45,10 +45,23 @@ export function getClientCount(): number {
   return clients.size;
 }
 
-export function createWebSocketHandler(config: CadengConfig) {
+export function broadcastConfig(config: CadengConfig) {
+  broadcast({
+    type: "connected",
+    models: config.models,
+    projects: config.projects ?? [],
+    config: {
+      port: config.project.port,
+      buildDir: config.project.build_dir,
+    },
+  });
+}
+
+export function createWebSocketHandler(getConfig: () => CadengConfig) {
   return {
     open(ws: ServerWebSocket<WsData>) {
       clients.add(ws);
+      const config = getConfig();
       const msg: WsServerMessage = {
         type: "connected",
         models: config.models,

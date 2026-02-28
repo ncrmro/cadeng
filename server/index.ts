@@ -1,5 +1,5 @@
 import { resolve } from "path";
-import { mkdirSync, readdirSync, readFileSync, writeFileSync, statSync } from "fs";
+import { mkdirSync, readdirSync, readFileSync, writeFileSync, statSync, watch } from "fs";
 import { parseConfigAsync, resolveAngles, validateRegistry } from "./config.ts";
 import {
   runBuild,
@@ -9,6 +9,7 @@ import {
 import type { ServerWebSocket } from "bun";
 import {
   broadcast,
+  broadcastConfig,
   createWebSocketHandler,
   sendTo,
   setHandlers,
@@ -427,12 +428,12 @@ async function runPipeline(config: CadengConfig, models?: string[], force = fals
 
 async function main() {
   console.log("[cadeng] Loading config...");
-  const config = await parseConfigAsync(CONFIG_PATH);
+  let config = await parseConfigAsync(CONFIG_PATH);
   console.log(`[cadeng] Project: ${config.project.name}`);
   console.log(`[cadeng] Build dir: ${config.project.build_dir}`);
   console.log(`[cadeng] Models: ${config.models.map((m) => m.name).join(", ")}`);
 
-  // Set up WebSocket command handlers
+  // Set up WebSocket command handlers (closures capture `config` by reference)
   setHandlers({
     onRebuild: () => runPipeline(config, undefined, true),
     onRender: (models) => runPipeline(config, models),
@@ -442,7 +443,7 @@ async function main() {
     onClientConnected: (ws) => sendExistingScreenshotsTo(ws, config),
   });
 
-  const wsHandler = createWebSocketHandler(config);
+  const wsHandler = createWebSocketHandler(() => config);
 
   // Start Bun server
   let server: ReturnType<typeof Bun.serve<WsData>>;
@@ -476,20 +477,52 @@ async function main() {
     `[cadeng] Server running at http://localhost:${server.port}`
   );
 
-  // Start file watcher
-  const watchers = createWatcher(config, () => runPipeline(config));
+  // Start source file watchers
+  let sourceWatchers = createWatcher(config, () => runPipeline(config));
+
+  // Watch cadeng.yaml for config changes
+  let configDebounce: ReturnType<typeof setTimeout> | null = null;
+  const configWatcher = watch(CONFIG_PATH, () => {
+    if (configDebounce) clearTimeout(configDebounce);
+    configDebounce = setTimeout(async () => {
+      configDebounce = null;
+      console.log("[config] cadeng.yaml changed, reloading...");
+      try {
+        const newConfig = await parseConfigAsync(CONFIG_PATH);
+        config = newConfig;
+        console.log(`[config] Reloaded — ${config.models.length} models, ${config.projects.length} projects`);
+
+        // Restart source watchers (watch dirs may have changed)
+        stopWatchers(sourceWatchers);
+        sourceWatchers = createWatcher(config, () => runPipeline(config));
+
+        // Push new config to all connected clients
+        broadcastConfig(config);
+
+        // Re-run pipeline with new config
+        await runPipeline(config);
+        broadcastExistingScreenshots(config);
+      } catch (err) {
+        console.error(
+          `[config] Reload failed: ${err instanceof Error ? err.message : err}`
+        );
+      }
+    }, 300);
+  });
 
   // Graceful shutdown
   process.on("SIGINT", () => {
     console.log("\n[cadeng] Shutting down...");
-    stopWatchers(watchers);
+    configWatcher.close();
+    stopWatchers(sourceWatchers);
     server.stop();
     process.exit(0);
   });
 
   process.on("SIGTERM", () => {
     console.log("[cadeng] Shutting down...");
-    stopWatchers(watchers);
+    configWatcher.close();
+    stopWatchers(sourceWatchers);
     server.stop();
     process.exit(0);
   });
