@@ -2,6 +2,20 @@
 
 Live preview server for AnchorSCAD projects. Watches Python sources, builds SCAD, renders screenshots via OpenSCAD, serves a WebSocket-powered gallery with STL downloads.
 
+## Components
+
+### CADeng Server (TypeScript/Bun)
+The main preview server for AnchorSCAD projects.
+
+### TW3D Engine (Rust)
+Terminal-to-Web 3D rendering engine for STL and OpenSCAD files. See [tw3d/README.md](tw3d/README.md) for details.
+
+**Quick Start:**
+```bash
+# Run terminal 3D renderer
+cargo run --manifest-path tw3d/tw3d-terminal/Cargo.toml
+```
+
 ## Install via Nix Flake
 
 Add cadeng to your project's `flake.nix`:
@@ -46,15 +60,34 @@ bun run dev
 # http://localhost:9090
 ```
 
-## How It Works
+## Requirements
 
+Provided by `flake.nix` dev shell:
+
+- Bun (for CADeng server)
+- Python 3.12+ with uv (for AnchorSCAD)
+- OpenSCAD (for rendering)
+- Rust toolchain (for TW3D engine)
+  - cargo, rustc
+  - wasm-pack, binaryen (for web builds)
+
+## Architecture
+
+### CADeng Server
 ```
 Edit .py → fs.watch → debounce(2s) → python build → registry validate → openscad render → WS → browser updates
 ```
 
+### TW3D Engine
+```
+STL file → Parse mesh → Transform (rotation) → Project to 2D → ASCII rasterize → Terminal display
+```
+
+See [tw3d/README.md](tw3d/README.md) for detailed TW3D documentation.
+
 ## Configuration
 
-All behavior is declared in `cadeng.yaml` (in your project root):
+All CADeng server behavior is declared in `cadeng.yaml` (in your project root):
 
 - **models** — name, SCAD path, camera angles, STL toggle
 - **cameras** — named OpenSCAD camera strings
@@ -63,10 +96,4 @@ All behavior is declared in `cadeng.yaml` (in your project root):
 - **render** — resolution, colorscheme, $fn
 - **stl.scales** — available scale percentages
 
-## Requirements
 
-Provided by `flake.nix` dev shell:
-
-- Bun
-- Python 3.12+ with uv
-- OpenSCAD
