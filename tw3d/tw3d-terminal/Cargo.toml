@@ -1,0 +1,16 @@
+[package]
+name = "tw3d-terminal"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "tw3d-terminal"
+path = "src/main.rs"
+
+[dependencies]
+tw3d-core = { path = "../tw3d-core" }
+nalgebra = { workspace = true }
+crossterm = { workspace = true }

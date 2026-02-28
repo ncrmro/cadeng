@@ -3,9 +3,11 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    flake-utils.url = "github:numtide/flake-utils";
+    rust-overlay.url = "github:oxalica/rust-overlay";
   };
 
-  outputs = { self, nixpkgs }:
+  outputs = { self, nixpkgs, flake-utils, rust-overlay }:
     let
       systems = [ "x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin" ];
       forAllSystems = nixpkgs.lib.genAttrs systems;
@@ -83,10 +85,15 @@
 
       devShells = forAllSystems (system:
         let
-          pkgs = nixpkgs.legacyPackages.${system};
+          overlays = [ (import rust-overlay) ];
+          pkgs = import nixpkgs { inherit system overlays; };
           python = pkgs.python312.withPackages (ps: with ps; [
             pip
           ]);
+          rustToolchain = pkgs.rust-bin.stable.latest.default.override {
+            extensions = [ "rust-src" "rust-analyzer" ];
+            targets = [ "wasm32-unknown-unknown" ];
+          };
         in
         {
           default = pkgs.mkShell {
@@ -95,6 +102,14 @@
               python
               pkgs.uv
               pkgs.openscad-unstable
+              # Rust toolchain for TW3D engine
+              rustToolchain
+              pkgs.pkg-config
+              pkgs.openssl
+              pkgs.cmake
+              # Web dependencies
+              pkgs.wasm-pack
+              pkgs.binaryen
             ];
 
             # manifold3d (via pythonopenscad) needs libstdc++ and libGL
@@ -104,13 +119,16 @@
             ];
 
             shellHook = ''
-              echo "cadeng dev shell"
-              echo "  bun    $(bun --version)"
-              echo "  python $(python3 --version 2>&1 | cut -d' ' -f2)"
-              echo "  uv     $(uv --version 2>&1 | cut -d' ' -f2)"
+              echo "🚀 CADeng + TW3D Engine Development Environment"
+              echo "  bun      $(bun --version)"
+              echo "  python   $(python3 --version 2>&1 | cut -d' ' -f2)"
+              echo "  uv       $(uv --version 2>&1 | cut -d' ' -f2)"
               echo "  openscad $(openscad --version 2>&1 | head -1)"
+              echo "  rustc    $(rustc --version 2>&1 | cut -d' ' -f2)"
+              echo "  cargo    $(cargo --version 2>&1 | cut -d' ' -f2)"
               echo ""
-              echo "Run: bun run dev"
+              echo "Run: bun run dev (CADeng server)"
+              echo "     cargo run --manifest-path tw3d/Cargo.toml (TW3D terminal demo)"
             '';
           };
         }
