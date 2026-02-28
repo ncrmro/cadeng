@@ -1,0 +1,32 @@
+[workspace]
+members = ["tw3d-core", "tw3d-terminal", "tw3d-web"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["CADeng Contributors"]
+license = "MIT"
+repository = "https://github.com/ncrmro/cadeng"
+
+[workspace.dependencies]
+# Shared geometry and math
+nalgebra = "0.32"
+# STL parsing
+nom = "7.1"
+# Terminal rendering
+crossterm = "0.27"
+# Web rendering (WGPU)
+wgpu = "0.19"
+winit = "0.29"
+pollster = "0.3"
+# WASM bindings
+wasm-bindgen = "0.2"
+web-sys = { version = "0.3", features = ["Window", "Document", "HtmlCanvasElement", "WebGl2RenderingContext"] }
+# CSG operations
+# Note: Add CSG library when implementing Phase II
+
+[profile.release]
+opt-level = "z"     # Optimize for size
+lto = true          # Enable Link Time Optimization
+codegen-units = 1   # Reduce number of codegen units to increase optimizations

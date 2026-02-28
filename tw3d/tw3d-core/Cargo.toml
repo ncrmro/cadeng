@@ -1,0 +1,11 @@
+[package]
+name = "tw3d-core"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+nalgebra = { workspace = true }
+nom = { workspace = true }

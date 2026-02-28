@@ -7,3 +7,8 @@ result-*
 __pycache__/
 *.pyc
 cadeng
+
+# Rust build artifacts
+tw3d/target/
+**/*.rs.bk
+Cargo.lock

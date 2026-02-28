@@ -1,0 +1,21 @@
+[package]
+name = "tw3d-web"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+tw3d-core = { path = "../tw3d-core" }
+nalgebra = { workspace = true }
+wasm-bindgen = { workspace = true }
+web-sys = { workspace = true }
+
+# WGPU dependencies (commented out for now - Phase II)
+# wgpu = { workspace = true }
+# winit = { workspace = true }
+# pollster = { workspace = true }
