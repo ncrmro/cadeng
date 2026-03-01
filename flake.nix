@@ -57,6 +57,7 @@
           };
 
           # Stage 3: Wrapped package — sets CADENG_CLIENT_DIR and runs via bun
+          # Includes xvfb-run on Linux for headless OpenSCAD rendering (containers, CI)
           cadeng = pkgs.stdenv.mkDerivation {
             pname = "cadeng";
             version = "0.1.0";
@@ -65,12 +66,16 @@
 
             nativeBuildInputs = [ pkgs.makeWrapper ];
 
-            installPhase = ''
+            installPhase = let
+              xvfbPath = pkgs.lib.optionalString pkgs.stdenv.isLinux
+                "${pkgs.xvfb-run}/bin";
+            in ''
               mkdir -p $out/bin $out/lib $out/share/cadeng/client
               cp -r ${cadeng-client}/* $out/share/cadeng/client/
               cp ${cadeng-server}/lib/cadeng-server.js $out/lib/
               makeWrapper ${pkgs.bun}/bin/bun $out/bin/cadeng \
                 --set CADENG_CLIENT_DIR "$out/share/cadeng/client" \
+                ${pkgs.lib.optionalString pkgs.stdenv.isLinux "--prefix PATH : \"${xvfbPath}\""} \
                 --add-flags "run $out/lib/cadeng-server.js"
             '';
           };
@@ -95,6 +100,8 @@
               python
               pkgs.uv
               pkgs.openscad-unstable
+            ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
+              pkgs.xvfb-run
             ];
 
             # manifold3d (via pythonopenscad) needs libstdc++ and libGL

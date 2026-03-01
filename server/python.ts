@@ -6,6 +6,15 @@ import type {
 } from "./types.ts";
 import { getCameraString } from "./config.ts";
 
+// OpenSCAD needs an OpenGL context. In headless environments (containers, CI),
+// use xvfb-run to create a virtual framebuffer.
+function openscadPrefix(): string[] {
+  if (!process.env.DISPLAY && !process.env.WAYLAND_DISPLAY) {
+    return ["xvfb-run", "-a"];
+  }
+  return [];
+}
+
 interface SpawnResult {
   success: boolean;
   stdout: string;
@@ -81,6 +90,7 @@ export async function runScreenshot(
   render: RenderConfig
 ): Promise<SpawnResult> {
   const args = [
+    ...openscadPrefix(),
     "openscad",
     `--imgsize=${render.resolution[0]},${render.resolution[1]}`,
     `--camera=${cameraString}`,
@@ -132,6 +142,7 @@ export async function runStlExport(
   fn: number
 ): Promise<SpawnResult> {
   return spawnCommand([
+    ...openscadPrefix(),
     "openscad",
     `-D$fn=${fn}`,
     "-o",
