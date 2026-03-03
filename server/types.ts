@@ -63,7 +63,7 @@ export interface ModelConfig {
 // -- WebSocket Message Types --
 
 export type WsServerMessage =
-  | { type: "connected"; models: ModelConfig[]; projects: ProjectGroup[]; config: { port: number; buildDir: string } }
+  | { type: "connected"; models: ModelConfig[]; projects: ProjectGroup[]; cameraSets: Record<string, string[]>; config: { port: number; buildDir: string } }
   | { type: "build_start"; command: string }
   | { type: "build_complete"; success: boolean; error?: string; duration_ms: number }
   | { type: "render_start"; models: string[]; totalAngles: number }

@@ -33,6 +33,7 @@ let stlScales: number[] = [100, 50, 25];
 let buildDir = "cad/build";
 let projectName = "CADeng Gallery";
 let projects: ProjectGroup[] = [];
+let cameraSets: Record<string, string[]> = {};
 let activeProject: string | null = null;
 
 // DOM refs
@@ -85,6 +86,7 @@ function handleMessage(msg: any) {
     case "connected":
       models = msg.models || [];
       projects = msg.projects || [];
+      cameraSets = msg.cameraSets || {};
       buildDir = msg.config?.buildDir || buildDir;
       // Restore activeProject from URL path (e.g. /project/stand)
       const pathMatch = location.pathname.match(/^\/project\/([^/]+)/);
@@ -161,10 +163,44 @@ function setProgress(pct: number) {
   $progressFill().style.width = `${pct}%`;
 }
 
+function resolveModelAngles(model: ModelInfo): string[] {
+  const defaultSet = (cameraSets as any).default || "standard";
+  const setName = model.angles || defaultSet;
+  const baseAngles = cameraSets[setName] || ["iso"];
+  const angles = [...baseAngles];
+  if (model.variants) {
+    for (const variant of model.variants) {
+      const variantSet = variant.angles || defaultSet;
+      const variantAngles = cameraSets[variantSet] || ["iso"];
+      for (const a of variantAngles) {
+        angles.push(`${variant.name}_${a}`);
+      }
+    }
+  }
+  return angles;
+}
+
 function updateScreenshot(model: string, angle: string, path: string, mtime: number) {
-  const img = document.getElementById(`img-${model}-${angle}`) as HTMLImageElement;
-  if (img) {
-    img.src = `/build/${path.split("/").pop()}?t=${mtime}`;
+  const card = document.getElementById(`card-${model}-${angle}`);
+  if (card) {
+    const filename = path.split("/").pop();
+    const src = `/build/${filename}?t=${mtime}`;
+    card.classList.remove("skeleton");
+    card.onclick = () => (window as any).openLightbox(src, `${model} — ${angle}`);
+    // Replace skeleton div or update existing img
+    const existing = card.querySelector("img") as HTMLImageElement;
+    if (existing) {
+      existing.src = src;
+    } else {
+      const placeholder = card.querySelector(".skeleton-img");
+      if (placeholder) {
+        const img = document.createElement("img");
+        img.src = src;
+        img.alt = `${model} ${angle}`;
+        img.loading = "lazy";
+        placeholder.replaceWith(img);
+      }
+    }
   } else {
     // New screenshot — re-render the gallery
     renderGallery();
@@ -244,34 +280,49 @@ function renderGallery() {
     html += `<span class="model-badge">${badgeLabel}</span>`;
     html += `</div>`;
 
-    if (shots.length > 0) {
-      html += `<div class="screenshot-grid">`;
-      // Sort: standard angles first, then variant angles alphabetically
-      const angleOrder = ["iso", "front", "back", "top", "right", "left"];
-      shots.sort((a, b) => {
-        const ai = angleOrder.indexOf(a.angle);
-        const bi = angleOrder.indexOf(b.angle);
-        if (ai >= 0 && bi >= 0) return ai - bi;
-        if (ai >= 0) return -1;
-        if (bi >= 0) return 1;
-        return a.angle.localeCompare(b.angle);
-      });
+    // Build a lookup of existing screenshots by angle
+    const shotMap = new Map<string, Screenshot>();
+    for (const ss of shots) {
+      shotMap.set(ss.angle, ss);
+    }
 
-      for (const ss of shots) {
+    // Resolve expected angles from config
+    const modelInfo = visibleModels.find((m) => m.name === modelName);
+    const expectedAngles = modelInfo ? resolveModelAngles(modelInfo) : [];
+
+    // Merge: expected angles (in order) + any extra shots not in expected list
+    const allAngles = [...expectedAngles];
+    for (const ss of shots) {
+      if (!allAngles.includes(ss.angle)) {
+        allAngles.push(ss.angle);
+      }
+    }
+
+    html += `<div class="screenshot-grid">`;
+    for (const angle of allAngles) {
+      const ss = shotMap.get(angle);
+      if (ss) {
         const filename = ss.path.split("/").pop();
         html += `
-          <div class="screenshot-card" onclick="openLightbox('/build/${filename}?t=${ss.mtime}', '${modelName} — ${ss.angle}')">
-            <img id="img-${ss.model}-${ss.angle}" src="/build/${filename}?t=${ss.mtime}" alt="${modelName} ${ss.angle}" loading="lazy" />
+          <div id="card-${modelName}-${angle}" class="screenshot-card" onclick="openLightbox('/build/${filename}?t=${ss.mtime}', '${modelName} — ${angle}')">
+            <img src="/build/${filename}?t=${ss.mtime}" alt="${modelName} ${angle}" loading="lazy" />
             <div class="card-footer">
-              <span class="angle-label">${ss.angle}</span>
+              <span class="angle-label">${angle}</span>
+            </div>
+          </div>
+        `;
+      } else {
+        html += `
+          <div id="card-${modelName}-${angle}" class="screenshot-card skeleton">
+            <div class="skeleton-img"></div>
+            <div class="card-footer">
+              <span class="angle-label">${angle}</span>
             </div>
           </div>
         `;
       }
-      html += `</div>`;
-    } else {
-      html += `<p style="color: var(--text-muted); font-size: 0.9rem;">No screenshots yet</p>`;
     }
+    html += `</div>`;
 
     // STL buttons (only when model has stl: true in config)
     const modelStl = models.find((m) => m.name === modelName)?.stl;

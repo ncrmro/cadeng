@@ -50,6 +50,7 @@ export function broadcastConfig(config: CadengConfig) {
     type: "connected",
     models: config.models,
     projects: config.projects ?? [],
+    cameraSets: config.camera_sets,
     config: {
       port: config.project.port,
       buildDir: config.project.build_dir,
