@@ -445,32 +445,48 @@ async function main() {
 
   const wsHandler = createWebSocketHandler(() => config);
 
-  // Start Bun server
-  let server: ReturnType<typeof Bun.serve<WsData>>;
-  try {
-    server = Bun.serve<WsData>({
-      port: parseInt(process.env.PORT || "") || config.project.port,
-      async fetch(req, server) {
-        // WebSocket upgrade
-        if (req.headers.get("upgrade")?.toLowerCase() === "websocket") {
-          const id = crypto.randomUUID();
-          const success = server.upgrade(req, { data: { id } });
-          if (success) return undefined;
-          return new Response("WebSocket upgrade failed", { status: 400 });
-        }
+  // Start Bun server — try incrementing ports if default is in use
+  const MAX_PORT_ATTEMPTS = 10;
+  const desiredPort = parseInt(process.env.PORT || "") || config.project.port;
+  let server: ReturnType<typeof Bun.serve<WsData>> | undefined;
 
-        // HTTP routes
-        const response = await handleRequest(req, config, state);
-        if (response) return response;
+  for (let attempt = 0; attempt < MAX_PORT_ATTEMPTS; attempt++) {
+    const tryPort = desiredPort + attempt;
+    try {
+      server = Bun.serve<WsData>({
+        port: tryPort,
+        async fetch(req, server) {
+          // WebSocket upgrade
+          if (req.headers.get("upgrade")?.toLowerCase() === "websocket") {
+            const id = crypto.randomUUID();
+            const success = server.upgrade(req, { data: { id } });
+            if (success) return undefined;
+            return new Response("WebSocket upgrade failed", { status: 400 });
+          }
 
-        return new Response("Not Found", { status: 404 });
-      },
-      websocket: wsHandler,
-    });
-  } catch (err) {
-    throw new Error(
-      `Failed to start server on port ${parseInt(process.env.PORT || "") || config.project.port}: ${err instanceof Error ? err.message : err}`
-    );
+          // HTTP routes
+          const response = await handleRequest(req, config, state);
+          if (response) return response;
+
+          return new Response("Not Found", { status: 404 });
+        },
+        websocket: wsHandler,
+      });
+      if (attempt > 0) {
+        console.log(`[cadeng] Port ${desiredPort} in use, using ${tryPort} instead`);
+      }
+      break;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (attempt < MAX_PORT_ATTEMPTS - 1 && msg.includes("EADDRINUSE")) {
+        continue;
+      }
+      throw new Error(`Failed to start server on port ${tryPort}: ${msg}`);
+    }
+  }
+
+  if (!server) {
+    throw new Error(`Failed to start server: all ports ${desiredPort}–${desiredPort + MAX_PORT_ATTEMPTS - 1} in use`);
   }
 
   console.log(
