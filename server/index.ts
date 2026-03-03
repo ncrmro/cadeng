@@ -1,9 +1,8 @@
 import { resolve } from "path";
 import { mkdirSync, readdirSync, readFileSync, writeFileSync, statSync, watch } from "fs";
-import { parseConfigAsync, resolveAngles, validateRegistry } from "./config.ts";
+import { parseConfigAsync, resolveAngles } from "./config.ts";
 import {
   runBuild,
-  runRegistryList,
   runScreenshotForModel,
 } from "./python.ts";
 import type { ServerWebSocket } from "bun";
@@ -17,7 +16,7 @@ import {
 } from "./websocket.ts";
 import { handleRequest } from "./routes.ts";
 import { createWatcher, stopWatchers } from "./watcher.ts";
-import type { BuildState, CadengConfig, ModelConfig, ValidationResult } from "./types.ts";
+import type { BuildState, CadengConfig, ModelConfig } from "./types.ts";
 
 const CONFIG_PATH = resolve("cadeng.yaml");
 
@@ -25,7 +24,7 @@ const state: BuildState = {
   building: false,
   rendering: false,
   lastBuild: null,
-  lastValidation: null,
+
   stlCache: new Map(),
   stlLocks: new Map(),
 };
@@ -47,7 +46,7 @@ interface ModelCache {
 interface PipelineCache {
   sourceHash: string;
   renderConfigHash: string;
-  validation: ValidationResult;
+
   models: Record<string, ModelCache>;
 }
 
@@ -191,14 +190,6 @@ function sendExistingScreenshotsTo(ws: ServerWebSocket<WsData>, config: CadengCo
       mtime: ss.mtime,
     });
   }
-  // Also send last validation if available
-  if (state.lastValidation) {
-    sendTo(ws, {
-      type: "validation",
-      warnings: state.lastValidation.warnings,
-      valid_models: state.lastValidation.valid_models,
-    });
-  }
 }
 
 async function runPipeline(config: CadengConfig, models?: string[], force = false) {
@@ -217,12 +208,6 @@ async function runPipeline(config: CadengConfig, models?: string[], force = fals
     const cache = readCache(config.project.build_dir);
     if (!models && !force && cache && cache.sourceHash === sourceHash) {
       console.log("[pipeline] Sources unchanged (hash match), skipping build+render");
-      state.lastValidation = cache.validation;
-      broadcast({
-        type: "validation",
-        warnings: cache.validation.warnings,
-        valid_models: cache.validation.valid_models,
-      });
       return;
     }
 
@@ -256,53 +241,14 @@ async function runPipeline(config: CadengConfig, models?: string[], force = fals
     }
     console.log(`[build] Complete (${buildResult.duration_ms}ms)`);
 
-    // Phase 2: Registry validation
-    const registryResult = await runRegistryList(config);
-    if (registryResult.error) {
-      console.warn(`[registry] ${registryResult.error}`);
-      broadcast({
-        type: "error",
-        message: registryResult.error,
-        context: "registry",
-      });
-    }
-
-    const validation = validateRegistry(
-      registryResult.entries,
-      config.models
-    );
-    state.lastValidation = validation;
-
-    if (validation.warnings.length > 0) {
-      for (const w of validation.warnings) {
-        const label =
-          w.issue === "not_in_registry"
-            ? "stale config (not in registry)"
-            : "undeclared (not in cadeng.yaml)";
-        console.warn(`[validation] Model '${w.model}': ${label}`);
-      }
-    }
-
-    broadcast({
-      type: "validation",
-      warnings: validation.warnings,
-      valid_models: validation.valid_models,
-    });
-
-    console.log(
-      `[validation] ${validation.valid_models.length} valid, ${validation.warnings.length} warnings`
-    );
-
-    // Phase 3: Render screenshots (per-model .scad hash check)
+    // Phase 2: Render screenshots (per-model .scad hash check)
     const renderConfigHash = computeRenderConfigHash(config);
     const renderConfigChanged = !cache || cache.renderConfigHash !== renderConfigHash;
     const newModelHashes: Record<string, ModelCache> = {};
 
-    const targetModels = config.models.filter((m) => {
-      if (!validation.valid_models.includes(m.name)) return false;
-      if (models && !models.includes(m.name)) return false;
-      return true;
-    });
+    const targetModels = models
+      ? config.models.filter((m) => models.includes(m.name))
+      : config.models;
 
     // Hash each model's .scad files, only queue renders for changed models
     const renderJobs: { model: ModelConfig; angle: string; scadOverride?: string; cameraAngle?: string }[] = [];
@@ -345,7 +291,7 @@ async function runPipeline(config: CadengConfig, models?: string[], force = fals
 
     const saveCacheAndReturn = () => {
       writeCache(config.project.build_dir, {
-        sourceHash, renderConfigHash, validation, models: newModelHashes,
+        sourceHash, renderConfigHash, models: newModelHashes,
       });
     };
 

@@ -26,7 +26,7 @@ export interface ProjectConfig {
 export interface PythonConfig {
   build_command: string;
   build_cwd: string;
-  registry_command: string;
+
   watch_dirs: string[];
   watch_extensions: string[];
   debounce_ms: number;
@@ -60,26 +60,6 @@ export interface ModelConfig {
   variants?: ModelVariant[];
 }
 
-// -- Registry Types --
-
-export interface RegistryEntry {
-  name: string;
-  type: string;
-  stl: boolean;
-}
-
-// -- Validation Types --
-
-export interface ValidationWarning {
-  model: string;
-  issue: "not_in_registry" | "not_in_config";
-}
-
-export interface ValidationResult {
-  warnings: ValidationWarning[];
-  valid_models: string[];
-}
-
 // -- WebSocket Message Types --
 
 export type WsServerMessage =
@@ -91,7 +71,6 @@ export type WsServerMessage =
   | { type: "render_complete"; duration_ms: number }
   | { type: "screenshot_updated"; model: string; angle: string; path: string; mtime: number }
   | { type: "stl_ready"; model: string; scale: number; path: string }
-  | { type: "validation"; warnings: ValidationWarning[]; valid_models: string[] }
   | { type: "error"; message: string; context?: string };
 
 export type WsClientMessage =
@@ -105,7 +84,7 @@ export interface BuildState {
   building: boolean;
   rendering: boolean;
   lastBuild: number | null;
-  lastValidation: ValidationResult | null;
+
   stlCache: Map<string, { path: string; sourceMtime: number }>;
   stlLocks: Map<string, Promise<string>>;
 }

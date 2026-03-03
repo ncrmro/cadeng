@@ -29,8 +29,6 @@ let reconnectAttempts = 0;
 const MAX_RECONNECT_DELAY = 30000;
 const screenshots = new Map<string, Screenshot>();
 let models: ModelInfo[] = [];
-let validModels: string[] = [];
-let warnings: { model: string; issue: string }[] = [];
 let stlScales: number[] = [100, 50, 25];
 let buildDir = "cad/build";
 let projectName = "CADeng Gallery";
@@ -112,12 +110,6 @@ function handleMessage(msg: any) {
         $buildStatus().textContent = `Build failed: ${msg.error}`;
       }
       updateStatus("connected", "Connected");
-      break;
-
-    case "validation":
-      warnings = msg.warnings || [];
-      validModels = msg.valid_models || [];
-      renderGallery();
       break;
 
     case "render_start":
@@ -217,20 +209,6 @@ function renderGallery() {
 
   const visibleModelNames = new Set(visibleModels.map((m) => m.name));
 
-  // Validation warnings (only for visible models)
-  const visibleWarnings = warnings.filter((w) => visibleModelNames.has(w.model));
-  if (visibleWarnings.length > 0) {
-    html += `<div class="warnings"><h3>Validation Warnings</h3><ul>`;
-    for (const w of visibleWarnings) {
-      const label =
-        w.issue === "not_in_registry"
-          ? `'${w.model}' is in cadeng.yaml but not found in Python registry (stale config)`
-          : `'${w.model}' is in Python registry but not declared in cadeng.yaml`;
-      html += `<li>${label}</li>`;
-    }
-    html += `</ul></div>`;
-  }
-
   // Group screenshots by model
   const groups = new Map<string, Screenshot[]>();
   for (const model of visibleModels) {
@@ -258,19 +236,12 @@ function renderGallery() {
   });
 
   for (const [modelName, shots] of sortedEntries) {
-    const modelWarnings = warnings.filter((w) => w.model === modelName);
-    const isValid = validModels.includes(modelName);
-
     html += `<div class="model-group">`;
     html += `<div class="model-group-header">`;
     html += `<h2>${modelName}</h2>`;
-    if (modelWarnings.length > 0) {
-      html += `<span class="model-badge warning">warning</span>`;
-    } else if (isValid) {
-      const modelType = modelTypeMap.get(modelName) || "component";
-      const badgeLabel = modelType === "vitamin_assembly" ? "vitamin assembly" : modelType;
-      html += `<span class="model-badge">${badgeLabel}</span>`;
-    }
+    const modelType = modelTypeMap.get(modelName) || "component";
+    const badgeLabel = modelType === "vitamin_assembly" ? "vitamin assembly" : modelType;
+    html += `<span class="model-badge">${badgeLabel}</span>`;
     html += `</div>`;
 
     if (shots.length > 0) {
@@ -304,7 +275,7 @@ function renderGallery() {
 
     // STL buttons (only when model has stl: true in config)
     const modelStl = models.find((m) => m.name === modelName)?.stl;
-    if (isValid && modelStl !== false) {
+    if (modelStl !== false) {
       html += `<div class="stl-buttons">`;
       for (const scale of stlScales) {
         const label = scale === 100 ? "STL" : `STL ${scale}%`;

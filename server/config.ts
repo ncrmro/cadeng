@@ -2,10 +2,6 @@ import { readFileSync } from "fs";
 import type {
   CadengConfig,
   ModelConfig,
-  ProjectGroup,
-  RegistryEntry,
-  ValidationResult,
-  ValidationWarning,
 } from "./types.ts";
 
 export function parseConfig(configPath: string): CadengConfig {
@@ -97,10 +93,6 @@ function validateConfig(parsed: any): CadengConfig {
   if (!parsed.python?.build_command) {
     throw new Error("cadeng.yaml: python.build_command is required");
   }
-  if (!parsed.python?.registry_command) {
-    throw new Error("cadeng.yaml: python.registry_command is required");
-  }
-
   if (!parsed.stl) {
     parsed.stl = { scales: [100] };
   }
@@ -184,40 +176,3 @@ export function getCameraString(
   return base;
 }
 
-export function validateRegistry(
-  registryEntries: RegistryEntry[],
-  configModels: ModelConfig[]
-): ValidationResult {
-  const registryNames = new Set(registryEntries.map((e) => e.name));
-  const configNames = new Set(configModels.map((m) => m.name));
-
-  const variantRegistryNames = new Set<string>();
-  for (const model of configModels) {
-    if (model.variants) {
-      for (const variant of model.variants) {
-        const scadStem = variant.scad.split("/").pop()?.replace(".scad", "");
-        if (scadStem) variantRegistryNames.add(scadStem);
-      }
-    }
-  }
-
-  const warnings: ValidationWarning[] = [];
-
-  for (const model of configModels) {
-    if (!registryNames.has(model.name)) {
-      warnings.push({ model: model.name, issue: "not_in_registry" });
-    }
-  }
-
-  for (const entry of registryEntries) {
-    if (!configNames.has(entry.name) && !variantRegistryNames.has(entry.name)) {
-      warnings.push({ model: entry.name, issue: "not_in_config" });
-    }
-  }
-
-  const valid_models = configModels
-    .filter((m) => registryNames.has(m.name))
-    .map((m) => m.name);
-
-  return { warnings, valid_models };
-}

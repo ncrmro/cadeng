@@ -1,7 +1,6 @@
 import type {
   CadengConfig,
   ModelConfig,
-  RegistryEntry,
   RenderConfig,
 } from "./types.ts";
 import { getCameraString } from "./config.ts";
@@ -55,32 +54,6 @@ export async function runBuild(
   config: CadengConfig
 ): Promise<SpawnResult> {
   return spawnCommand(config.python.build_command, config.python.build_cwd);
-}
-
-export async function runRegistryList(
-  config: CadengConfig
-): Promise<{ entries: RegistryEntry[]; error?: string }> {
-  const result = await spawnCommand(
-    config.python.registry_command,
-    config.python.build_cwd
-  );
-
-  if (!result.success) {
-    return {
-      entries: [],
-      error: `Registry command failed (exit ${result.exitCode}): ${result.stderr}`,
-    };
-  }
-
-  try {
-    const entries = JSON.parse(result.stdout) as RegistryEntry[];
-    return { entries };
-  } catch {
-    return {
-      entries: [],
-      error: `Registry command output is not valid JSON: ${result.stdout.slice(0, 200)}`,
-    };
-  }
 }
 
 export async function runScreenshot(
