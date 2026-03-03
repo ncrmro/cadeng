@@ -478,7 +478,8 @@ async function main() {
       break;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      if (attempt < MAX_PORT_ATTEMPTS - 1 && msg.includes("EADDRINUSE")) {
+      const isPortInUse = msg.includes("EADDRINUSE") || msg.includes("port") && msg.includes("in use");
+      if (attempt < MAX_PORT_ATTEMPTS - 1 && isPortInUse) {
         continue;
       }
       throw new Error(`Failed to start server on port ${tryPort}: ${msg}`);
