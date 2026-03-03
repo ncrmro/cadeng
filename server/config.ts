@@ -129,13 +129,16 @@ function validateConfig(parsed: any): CadengConfig {
     parsed.projects = [];
   }
 
-  // Validate model camera set references
+  // Validate model camera set references and apply STL defaults
   for (const model of parsed.models as ModelConfig[]) {
     if (model.angles && !(model.angles in parsed.camera_sets)) {
       console.warn(
         `Warning: Model '${model.name}' references unknown camera set '${model.angles}'. ` +
           `Available sets: ${Object.keys(parsed.camera_sets).filter((k) => k !== "default").join(", ")}`
       );
+    }
+    if (model.stl === undefined) {
+      model.stl = model.type === "component";
     }
   }
 

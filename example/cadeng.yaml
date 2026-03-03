@@ -43,29 +43,27 @@ projects:
     models: [phone, stand-base, stand-cradle, phone-stand-assembly]
 
 models:
+  # Components default to stl: true, vitamins/assemblies default to stl: false.
+  # Explicit stl: true/false overrides the default.
   - name: phone
     type: vitamin
     scad: build/phone.scad
     angles: standard
-    stl: false
 
   - name: stand-base
     type: component
     scad: build/stand-base.scad
     angles: full
-    stl: true
 
   - name: stand-cradle
     type: component
     scad: build/stand-cradle.scad
     angles: full
-    stl: true
 
   - name: phone-stand-assembly
     type: assembly
     scad: build/phone-stand-assembly.scad
     angles: full
-    stl: false
     variants:
       - name: exploded
         scad: build/phone_stand_exploded.scad
