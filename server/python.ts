@@ -5,12 +5,8 @@ import type {
 } from "./types.ts";
 import { getCameraString } from "./config.ts";
 
-// OpenSCAD needs an OpenGL context. In headless environments (containers, CI),
-// use xvfb-run to create a virtual framebuffer.
+// Headless rendering handled by the wrapped openscad binary (EGL env vars).
 function openscadPrefix(): string[] {
-  if (!process.env.DISPLAY && !process.env.WAYLAND_DISPLAY) {
-    return ["xvfb-run", "-a"];
-  }
   return [];
 }
 

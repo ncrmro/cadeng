@@ -56,8 +56,22 @@
             '';
           };
 
+          # Wrapped openscad with automatic EGL detection for headless rendering.
+          # Sets Mesa EGL vendor discovery (harmless on desktop); only forces
+          # software rendering when no display server is detected.
+          openscad = if pkgs.stdenv.isDarwin
+            then pkgs.writeShellScriptBin "openscad" ''
+              exec ${pkgs.openscad-unstable}/bin/openscad "$@"
+            ''
+            else pkgs.writeShellScriptBin "openscad" ''
+              if [ -z "''${DISPLAY:-}" ] && [ -z "''${WAYLAND_DISPLAY:-}" ]; then
+                export LIBGL_ALWAYS_SOFTWARE=1
+              fi
+              export __EGL_VENDOR_LIBRARY_FILENAMES="${pkgs.mesa}/share/glvnd/egl_vendor.d/50_mesa.json"
+              exec ${pkgs.openscad-unstable}/bin/openscad "$@"
+            '';
+
           # Stage 3: Wrapped package — sets CADENG_CLIENT_DIR and runs via bun
-          # Includes xvfb-run on Linux for headless OpenSCAD rendering (containers, CI)
           cadeng = pkgs.stdenv.mkDerivation {
             pname = "cadeng";
             version = "0.1.0";
@@ -66,23 +80,19 @@
 
             nativeBuildInputs = [ pkgs.makeWrapper ];
 
-            installPhase = let
-              xvfbPath = pkgs.lib.optionalString pkgs.stdenv.isLinux
-                "${pkgs.xvfb-run}/bin";
-            in ''
+            installPhase = ''
               mkdir -p $out/bin $out/lib $out/share/cadeng/client
               cp -r ${cadeng-client}/* $out/share/cadeng/client/
               cp ${cadeng-server}/lib/cadeng-server.js $out/lib/
               makeWrapper ${pkgs.bun}/bin/bun $out/bin/cadeng \
                 --set CADENG_CLIENT_DIR "$out/share/cadeng/client" \
-                ${pkgs.lib.optionalString pkgs.stdenv.isLinux "--prefix PATH : \"${xvfbPath}\""} \
                 --add-flags "run $out/lib/cadeng-server.js"
             '';
           };
         in
         {
           default = cadeng;
-          inherit cadeng-client cadeng-server cadeng;
+          inherit cadeng-client cadeng-server cadeng openscad;
         }
       );
 
@@ -99,9 +109,7 @@
               pkgs.bun
               python
               pkgs.uv
-              pkgs.openscad-unstable
-            ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
-              pkgs.xvfb-run
+              self.packages.${system}.openscad
             ];
 
             # manifold3d (via pythonopenscad) needs libstdc++ and libGL
