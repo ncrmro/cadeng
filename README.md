@@ -70,3 +70,8 @@ Provided by `flake.nix` dev shell:
 - Bun
 - Python 3.12+ with uv
 - OpenSCAD
+
+## Contributing
+
+See [`CONTRIBUTOR.md`](CONTRIBUTOR.md) for the development workflow and
+[`AGENTS.md`](AGENTS.md) for the agent-oriented map of the repo.

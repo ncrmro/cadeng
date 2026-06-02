@@ -1,5 +1,7 @@
 # CADeng — Agent Instructions
 
+@CONTRIBUTOR.md — branching, worktrees, commits, and PR workflow
+
 ## What This Is
 
 CADeng is a live preview server for AnchorSCAD projects. It watches Python sources, builds SCAD, renders screenshots via OpenSCAD, and serves a WebSocket-powered gallery with STL downloads.
